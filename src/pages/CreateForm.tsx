@@ -30,7 +30,7 @@ export function CreateForm() {
   React.useEffect(() => {
     if (id) {
       console.log(`Fetching form data for ID: ${id}`);
-      fetch(`http://localhost:4000/api/forms/${id}`)
+      fetch(`${import.meta.env.VITE_SERVER_API}/api/forms/${id}`)
         .then(response => {
           console.log(`Response status: ${response.status}`);
           if (!response.ok) {
@@ -94,7 +94,7 @@ export function CreateForm() {
     };
 
     // Save or update to backend API
-    const url = isEditing ? `http://localhost:4000/api/forms/${id}` : 'http://localhost:4000/api/forms';
+    const url = isEditing ? `${import.meta.env.VITE_SERVER_API}/api/forms/${id}` : `${import.meta.env.VITE_SERVER_API}/api/forms`;
     const method = isEditing ? 'PUT' : 'POST';
     fetch(url, {
       method: method,

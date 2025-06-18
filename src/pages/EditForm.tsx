@@ -21,7 +21,7 @@ const EditForm: React.FC = () => {
   useEffect(() => {
     if (id) {
       console.log(`Fetching form data for ID: ${id}`);
-      fetch(`http://localhost:4000/api/forms/${id}`)
+      fetch(`${import.meta.env.VITE_SERVER_API}/api/forms/${id}`)
         .then(response => {
           console.log(`Response status: ${response.status}`);
           if (!response.ok) {
@@ -54,7 +54,7 @@ const EditForm: React.FC = () => {
       updatedAt: new Date().toISOString()
     };
 
-    fetch(`http://localhost:4000/api/forms/${id}`, {
+    fetch(`${import.meta.env.VITE_SERVER_API}/api/forms/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updatedForm)

@@ -8,7 +8,7 @@ export function FormList() {
   const [forms, setForms] = React.useState<Form[]>([]);
 
   React.useEffect(() => {
-    fetch('http://localhost:4000/api/forms')
+    fetch(`${import.meta.env.VITE_SERVER_API}/api/forms`)
       .then(response => {
         if (!response.ok) {
           throw new Error('Network response was not ok');
@@ -30,7 +30,7 @@ export function FormList() {
     if (form) {
       const updatedForm = { ...form, isActive: !form.isActive, updatedAt: new Date() };
       // Update via API
-      fetch(`http://localhost:4000/api/forms/${formId}`, {
+      fetch(`${import.meta.env.VITE_SERVER_API}/api/forms/${formId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedForm)

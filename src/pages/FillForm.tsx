@@ -24,7 +24,7 @@ export function FillForm() {
     console.log('FillForm - formId:', formId);
     
     if (formId) {
-      fetch(`http://localhost:4000/api/forms/${formId}`)
+      fetch(`${import.meta.env.VITE_SERVER_API}/api/forms/${formId}`)
         .then(response => {
           console.log(`Response status: ${response.status}`);
           if (!response.ok) {
@@ -122,7 +122,7 @@ export function FillForm() {
       };
       
       // Save to backend API
-      await fetch('http://localhost:4000/api/responses', {
+      await fetch(`${import.meta.env.VITE_SERVER_API}/api/responses`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(response)

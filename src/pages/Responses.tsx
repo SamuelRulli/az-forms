@@ -12,7 +12,7 @@ export function Responses() {
   useEffect(() => {
     setForms(formStorage.getForms());
     // Fetch responses from backend API
-    fetch('http://localhost:4000/api/responses')
+    fetch(`${import.meta.env.VITE_SERVER_API}/api/responses`)
       .then(res => res.json())
       .then(data => {
         console.log('Respostas recebidas do backend:', data);

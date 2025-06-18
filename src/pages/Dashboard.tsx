@@ -10,7 +10,7 @@ export function Dashboard() {
 
   useEffect(() => {
     // Fetch forms data
-    fetch('http://localhost:4000/api/forms')
+    fetch(`${import.meta.env.VITE_SERVER_API}/api/forms`)
       .then(response => {
         if (!response.ok) {
           throw new Error('Network response was not ok');
@@ -30,7 +30,7 @@ export function Dashboard() {
       });
 
     // Fetch responses data
-    fetch('http://localhost:4000/api/responses')
+    fetch(`${import.meta.env.VITE_SERVER_API}/api/responses`)
       .then(response => {
         if (!response.ok) {
           throw new Error('Network response was not ok');
