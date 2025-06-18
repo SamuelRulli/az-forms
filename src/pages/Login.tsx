@@ -139,7 +139,7 @@ export function Login() {
               </button>
             </div>
 
-            <div className="text-center">
+            {/* <div className="text-center">
               <span className="text-gray-600">Don't have an account? </span>
               <Link
                 to="/register"
@@ -147,7 +147,7 @@ export function Login() {
               >
                 Sign Up
               </Link>
-            </div>
+            </div> */}
           </form>
         </div>
       </div>
