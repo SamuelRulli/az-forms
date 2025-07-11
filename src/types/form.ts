@@ -1,6 +1,6 @@
 export interface FormField {
   id: string;
-  type: 'text' | 'email' | 'number' | 'select' | 'textarea' | 'checkbox' | 'radio';
+  type: 'text' | 'email' | 'number' | 'select' | 'textarea' | 'checkbox' | 'radio' | 'file';
   label: string;
   placeholder?: string;
   required: boolean;
@@ -10,6 +10,8 @@ export interface FormField {
     max?: number;
     pattern?: string;
   };
+  acceptedFileTypes?: string[]; // For file uploads (e.g., ['image/*', '.pdf'])
+  maxFileSize?: number; // Maximum file size in bytes
 }
 
 export interface FormStep {

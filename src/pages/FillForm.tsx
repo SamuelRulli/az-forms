@@ -69,8 +69,49 @@ export function FillForm() {
     step.fields.forEach(field => {
       const value = formData[field.id];
       
-      if (field.required && (!value || (typeof value === 'string' && value.trim() === ''))) {
-        stepErrors[field.id] = 'This field is required';
+      if (field.required) {
+        if (field.type === 'file') {
+          // For file fields, check if a file is selected
+          if (!value || !(value instanceof File)) {
+            stepErrors[field.id] = 'Please upload a file';
+          }
+        } else if (!value || (typeof value === 'string' && value.trim() === '')) {
+          // For other field types
+          stepErrors[field.id] = 'This field is required';
+        }
+      }
+      
+      // Validate file type and size if a file is uploaded
+      if (field.type === 'file' && value instanceof File) {
+        // Validate file type if acceptedFileTypes is specified
+        if (field.acceptedFileTypes && field.acceptedFileTypes.length > 0) {
+          const fileType = value.type;
+          const fileExtension = '.' + value.name.split('.').pop()?.toLowerCase();
+          
+          const isValidType = field.acceptedFileTypes.some(type => {
+            if (type.startsWith('.')) {
+              // Check file extension
+              return type.toLowerCase() === fileExtension;
+            } else if (type.endsWith('/*')) {
+              // Check MIME type category (e.g., 'image/*')
+              const category = type.split('/')[0];
+              return fileType.startsWith(category + '/');
+            } else {
+              // Check exact MIME type
+              return type === fileType;
+            }
+          });
+          
+          if (!isValidType) {
+            stepErrors[field.id] = `Tipo de arquivo não permitido. Por favor, use um dos seguintes tipos: ${field.acceptedFileTypes.join(', ')}`;
+          }
+        }
+        
+        // Validate file size if maxFileSize is specified
+        if (field.maxFileSize && value.size > field.maxFileSize) {
+          const maxSizeMB = (field.maxFileSize / (1024 * 1024)).toFixed(2);
+          stepErrors[field.id] = `O arquivo é muito grande. O tamanho máximo permitido é ${maxSizeMB} MB.`;
+        }
       }
       
       if (field.type === 'email' && value && typeof value === 'string') {
@@ -112,33 +153,140 @@ export function FillForm() {
     setIsSubmitting(true);
     
     try {
-      const response: FormResponse = {
-        formId: form.id,
-        responseId: uuidv4(),
-        companyName: form.companyName,
-        responses: formData,
-        completedAt: new Date(),
-        ipAddress: 'Unknown'
-      };
+      // Check if there are any file uploads in the form data
+      const hasFileUploads = Object.entries(formData).some(([_, value]) => value instanceof File);
       
-      // Save to backend API
-      await fetch(`${import.meta.env.VITE_SERVER_API}/api/responses`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(response)
-      });
-      formStorage.addResponse(response); // Optional: keep local copy
+      if (hasFileUploads) {
+        // Handle form with file uploads using FormData
+        const formDataObj = new FormData();
+        
+        // Add form metadata
+        formDataObj.append('formId', form.id);
+        formDataObj.append('responseId', uuidv4());
+        formDataObj.append('companyName', form.companyName || '');
+        formDataObj.append('completedAt', new Date().toISOString());
+        
+        // Add all form responses
+        Object.entries(formData).forEach(([fieldId, value]) => {
+          if (value instanceof File) {
+            // Append files with their field IDs
+            formDataObj.append(`file_${fieldId}`, value, value.name);
+            
+            // Also add file metadata to the responses
+            // Ensure metadata matches the actual file
+            const fileMetadata = {
+              fileName: value.name,
+              fileSize: value.size,
+              fileType: value.type
+            };
+            formDataObj.append(`metadata_${fieldId}`, JSON.stringify(fileMetadata));
+            
+            // Log file information for debugging
+            console.log(`Uploading file for field ${fieldId}:`, {
+              name: value.name,
+              size: value.size,
+              type: value.type
+            });
+          } else {
+            // For non-file fields, stringify the value
+            formDataObj.append(fieldId, String(value));
+          }
+        });
+        
+        // Save to backend API using FormData
+        try {
+          console.log('Sending file upload request to:', `${import.meta.env.VITE_SERVER_API}/api/upload`);
+          
+          const response = await fetch(`${import.meta.env.VITE_SERVER_API}/api/upload`, {
+            method: 'POST',
+            body: formDataObj,
+            // Add mode: 'cors' to handle CORS properly
+            mode: 'cors',
+            credentials: 'same-origin'
+          });
+          
+          if (!response.ok) {
+            // Try to get more details about the error
+            let errorDetails = '';
+            try {
+              const errorData = await response.json();
+              errorDetails = JSON.stringify(errorData);
+            } catch (e) {
+              errorDetails = await response.text();
+            }
+            
+            throw new Error(`Upload failed with status ${response.status}: ${errorDetails}`);
+          }
+          
+          console.log('File upload successful');
+        } catch (uploadError) {
+          console.error('File upload error:', uploadError);
+          throw uploadError; // Re-throw to be caught by the outer try-catch
+        }
+      } else {
+        // Handle regular form submission without files
+        const response: FormResponse = {
+          formId: form.id,
+          responseId: uuidv4(),
+          companyName: form.companyName,
+          responses: formData,
+          completedAt: new Date(),
+          ipAddress: 'Unknown'
+        };
+        
+        // Save to backend API
+        await fetch(`${import.meta.env.VITE_SERVER_API}/api/responses`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(response)
+        });
+        formStorage.addResponse(response); // Optional: keep local copy
+      }
+      
       setIsCompleted(true);
-      
     } catch (error) {
       console.error('Error submitting form:', error);
-      alert('Error submitting form. Please try again.');
+      
+      // Provide a more detailed error message to the user
+      let errorMessage = 'Error submitting form. ';
+      
+      if (error instanceof Error) {
+        // Check if it's a file upload error
+        if (error.message.includes('Upload failed')) {
+          errorMessage += 'There was a problem uploading your file. ';
+          
+          // Add specific error details if available
+          if (error.message.includes('413')) {
+            errorMessage += 'The file may be too large for the server to accept. ';
+          } else if (error.message.includes('415')) {
+            errorMessage += 'The file type may not be supported. ';
+          } else if (error.message.includes('400')) {
+            errorMessage += 'There was an issue with the form data. ';
+          } else if (error.message.includes('401') || error.message.includes('403')) {
+            errorMessage += 'You may not have permission to upload files. ';
+          } else if (error.message.includes('404')) {
+            errorMessage += 'The upload endpoint could not be found. ';
+          } else if (error.message.includes('500')) {
+            errorMessage += 'The server encountered an error processing your request. ';
+          } else if (error.message.includes('Network')) {
+            errorMessage += 'Please check your internet connection. ';
+          }
+        }
+        
+        // Add the actual error message for more context
+        if (error.message && !errorMessage.includes(error.message)) {
+          errorMessage += `Details: ${error.message}`;
+        }
+      }
+      
+      errorMessage += 'Please try again or contact support if the problem persists.';
+      alert(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleFieldChange = (fieldId: string, value: string | boolean) => {
+  const handleFieldChange = (fieldId: string, value: string | boolean | File | null) => {
     setFormData({ ...formData, [fieldId]: value });
     
     // Clear error when user starts typing

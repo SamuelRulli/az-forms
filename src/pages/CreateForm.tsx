@@ -125,10 +125,16 @@ export function CreateForm() {
     const updatedSteps = [...customSteps];
     const newFieldData: FormFieldType = {
       id: `custom-${uuidv4()}`,
-      type: newField.type as 'text' | 'email' | 'number' | 'textarea' | 'select' | 'checkbox' | 'radio',
+      type: newField.type as 'text' | 'email' | 'number' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'file',
       label: newField.label,
       required: newField.required
     };
+
+    // Add file-specific properties if the field type is 'file'
+    if (newField.type === 'file') {
+      newFieldData.acceptedFileTypes = ['image/*', '.pdf', '.doc', '.docx', '.xls', '.xlsx'];
+      newFieldData.maxFileSize = 5 * 1024 * 1024; // 5MB default max size
+    }
 
     updatedSteps[newField.stepIndex].fields.push(newFieldData);
     setCustomSteps(updatedSteps);
@@ -234,6 +240,7 @@ export function CreateForm() {
                   <option value="select">Select</option>
                   <option value="checkbox">Checkbox</option>
                   <option value="radio">Radio Button</option>
+                  <option value="file">File Upload</option>
                 </select>
               </div>
               <div className="flex items-center justify-between">
