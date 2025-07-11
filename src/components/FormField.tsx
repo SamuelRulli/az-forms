@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { FormField as FormFieldType } from '../types/form';
+import { v4 as uuidv4 } from 'uuid';
 
 interface FormFieldProps {
   field: FormFieldType;
@@ -97,6 +98,9 @@ export function FormField({ field, value, onChange, error }: FormFieldProps) {
 
   // File upload with drag and drop functionality
   const [isDragging, setIsDragging] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleDragEnter = useCallback((e: React.DragEvent<HTMLDivElement>) => {
@@ -126,18 +130,102 @@ export function FormField({ field, value, onChange, error }: FormFieldProps) {
     
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const file = e.dataTransfer.files[0];
-      validateAndProcessFile(file);
+      setSelectedFile(file);
     }
   }, []);
 
   const handleFileInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0];
-      validateAndProcessFile(file);
+      setSelectedFile(file);
     }
   }, []);
 
-  const validateAndProcessFile = (file: File) => {
+  const handleUploadClick = async () => {
+    if (!selectedFile) return;
+    
+    // Validate the file before uploading
+    if (!validateFile(selectedFile)) {
+      return;
+    }
+    
+    setIsUploading(true);
+    setUploadError(null);
+    
+    try {
+      // Create FormData for the file upload
+      const formDataObj = new FormData();
+      
+      // Generate a unique field ID if not available
+      const fieldId = field.id || `file-${uuidv4()}`;
+      
+      // Add file with field ID
+      formDataObj.append(`file_${fieldId}`, selectedFile, selectedFile.name);
+      
+      // Add file metadata
+      const fileMetadata = {
+        fileName: selectedFile.name,
+        fileSize: selectedFile.size,
+        fileType: selectedFile.type
+      };
+      formDataObj.append(`metadata_${fieldId}`, JSON.stringify(fileMetadata));
+      
+      // Add form metadata (minimal required info)
+      formDataObj.append('formId', 'temp-form-id');
+      formDataObj.append('responseId', uuidv4());
+      formDataObj.append('completedAt', new Date().toISOString());
+      
+      console.log('Sending file upload request to:', `${import.meta.env.VITE_SERVER_API}/api/upload`);
+      
+      const response = await fetch(`${import.meta.env.VITE_SERVER_API}/api/upload`, {
+        method: 'POST',
+        body: formDataObj,
+        mode: 'cors',
+        credentials: 'same-origin'
+      });
+      
+      if (!response.ok) {
+        let errorDetails = '';
+        try {
+          const errorData = await response.json();
+          errorDetails = JSON.stringify(errorData);
+        } catch (e) {
+          errorDetails = await response.text();
+        }
+        
+        throw new Error(`Upload failed with status ${response.status}: ${errorDetails}`);
+      }
+      
+      console.log('File upload successful');
+      
+      // Pass the file to the form state after successful upload
+      onChange(selectedFile);
+      setSelectedFile(null);
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      
+      let errorMessage = 'Error uploading file. ';
+      
+      if (error instanceof Error) {
+        if (error.message.includes('413')) {
+          errorMessage += 'The file is too large for the server to accept.';
+        } else if (error.message.includes('415')) {
+          errorMessage += 'The file type is not supported.';
+        } else if (error.message.includes('Network')) {
+          errorMessage += 'Please check your internet connection.';
+        } else {
+          errorMessage += error.message;
+        }
+      }
+      
+      setUploadError(errorMessage);
+      // Don't clear the selected file so the user can try again
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const validateFile = (file: File): boolean => {
     // Validate file type if acceptedFileTypes is specified
     if (field.acceptedFileTypes && field.acceptedFileTypes.length > 0) {
       const fileType = file.type;
@@ -158,19 +246,19 @@ export function FormField({ field, value, onChange, error }: FormFieldProps) {
       });
       
       if (!isValidType) {
-        alert(`Tipo de arquivo não permitido. Por favor, use um dos seguintes tipos: ${field.acceptedFileTypes.join(', ')}`);
-        return;
+        setUploadError(`Tipo de arquivo não permitido. Por favor, use um dos seguintes tipos: ${field.acceptedFileTypes.join(', ')}`);
+        return false;
       }
     }
     
     // Validate file size if maxFileSize is specified
     if (field.maxFileSize && file.size > field.maxFileSize) {
       const maxSizeMB = (field.maxFileSize / (1024 * 1024)).toFixed(2);
-      alert(`O arquivo é muito grande. O tamanho máximo permitido é ${maxSizeMB} MB.`);
-      return;
+      setUploadError(`O arquivo é muito grande. O tamanho máximo permitido é ${maxSizeMB} MB.`);
+      return false;
     }
     
-    onChange(file);
+    return true;
   };
 
   const handleRemoveFile = () => {
@@ -193,51 +281,130 @@ export function FormField({ field, value, onChange, error }: FormFieldProps) {
     return (
       <div>
         {!fileValue ? (
-          <div
-            className={dragAreaClasses}
-            onDragEnter={handleDragEnter}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <input
-              type="file"
-              ref={fileInputRef}
-              className="hidden"
-              onChange={handleFileInputChange}
-              accept={field.acceptedFileTypes?.join(',')}
-              required={field.required}
-            />
-            <div className="flex flex-col items-center justify-center">
-              <svg 
-                className="w-10 h-10 text-gray-400 mb-3" 
-                fill="none" 
-                stroke="currentColor" 
-                viewBox="0 0 24 24" 
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round" 
-                  strokeWidth="2" 
-                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                />
-              </svg>
-              <p className="mb-2 text-sm text-gray-500">
-                <span className="font-semibold">Clique para fazer upload</span> ou arraste e solte
-              </p>
-              {field.acceptedFileTypes && (
-                <p className="text-xs text-gray-500">
-                  {field.acceptedFileTypes.join(', ')}
+          <div>
+            <div
+              className={dragAreaClasses}
+              onDragEnter={handleDragEnter}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <input
+                type="file"
+                ref={fileInputRef}
+                className="hidden"
+                onChange={handleFileInputChange}
+                accept={field.acceptedFileTypes?.join(',')}
+                required={field.required}
+              />
+              <div className="flex flex-col items-center justify-center">
+                <svg 
+                  className="w-10 h-10 text-gray-400 mb-3" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24" 
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round" 
+                    strokeWidth="2" 
+                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                  />
+                </svg>
+                <p className="mb-2 text-sm text-gray-500">
+                  <span className="font-semibold">Clique para selecionar</span> ou arraste e solte
                 </p>
-              )}
-              {field.maxFileSize && (
-                <p className="text-xs text-gray-500">
-                  Tamanho máximo: {(field.maxFileSize / (1024 * 1024)).toFixed(2)} MB
-                </p>
-              )}
+                {field.acceptedFileTypes && (
+                  <p className="text-xs text-gray-500">
+                    {field.acceptedFileTypes.join(', ')}
+                  </p>
+                )}
+                {field.maxFileSize && (
+                  <p className="text-xs text-gray-500">
+                    Tamanho máximo: {(field.maxFileSize / (1024 * 1024)).toFixed(2)} MB
+                  </p>
+                )}
+              </div>
             </div>
+            
+            {selectedFile && (
+              <div className="mt-4 border rounded-lg p-4">
+                {uploadError && (
+                  <div className="mb-3 text-sm text-red-600 bg-red-50 p-2 rounded">
+                    {uploadError}
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <svg 
+                      className="w-8 h-8 text-blue-500 mr-3" 
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24" 
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round" 
+                        strokeWidth="2" 
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                      />
+                    </svg>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900 truncate" style={{ maxWidth: '200px' }}>
+                        {selectedFile.name}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {(selectedFile.size / 1024).toFixed(2)} KB
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center">
+                    <button
+                      type="button"
+                      onClick={handleUploadClick}
+                      disabled={isUploading}
+                      className="mr-2 px-3 py-1 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-blue-400 disabled:cursor-not-allowed flex items-center"
+                    >
+                      {isUploading ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-1"></div>
+                          Uploading...
+                        </>
+                      ) : (
+                        'Upload'
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedFile(null);
+                        setUploadError(null);
+                      }}
+                      disabled={isUploading}
+                      className="text-red-500 hover:text-red-700 focus:outline-none disabled:text-red-300 disabled:cursor-not-allowed"
+                    >
+                      <svg 
+                        className="w-5 h-5" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24" 
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path 
+                          strokeLinecap="round" 
+                          strokeLinejoin="round" 
+                          strokeWidth="2" 
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="border rounded-lg p-4">

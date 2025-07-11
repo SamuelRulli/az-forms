@@ -41,19 +41,49 @@ export function Responses() {
   const exportResponses = () => {
     if (filteredResponses.length === 0) return;
 
-    const csvContent = "data:text/csv;charset=utf-8," 
-      + "Response ID,Company,Completed At,Form ID\n"
-      + filteredResponses.map(r => 
-          `${r.responseId},${r.companyName},${new Date(r.completedAt).toLocaleString()},${r.formId}`
-        ).join("\n");
+    // Call the API to get the response data for CSV generation
+    const apiUrl = formId 
+      ? `${import.meta.env.VITE_SERVER_API}/api/responses?formId=${formId}` 
+      : `${import.meta.env.VITE_SERVER_API}/api/responses`;
+    
+    fetch(apiUrl)
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Failed to fetch response data');
+        }
+        return response.json();
+      })
+      .then(data => {
+        // Filter by formId if needed (in case the API doesn't support filtering)
+        const csvData = formId 
+          ? data.filter((r: FormResponse) => r.formId === formId)
+          : data;
+        
+        if (csvData.length === 0) {
+          console.warn('No data available for CSV export');
+          return;
+        }
 
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `responses-${formId || 'all'}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+        // Generate CSV content
+        const csvContent = "data:text/csv;charset=utf-8," 
+          + "Response ID,Company,Completed At,Form ID\n"
+          + csvData.map((r: FormResponse) => 
+              `${r.responseId},${r.companyName},${new Date(r.completedAt).toLocaleString()},${r.formId}`
+            ).join("\n");
+
+        // Create and trigger download
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `responses-${formId || 'all'}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      })
+      .catch(error => {
+        console.error('Error exporting responses:', error);
+        alert('Failed to export responses. Please try again later.');
+      });
   };
 
   const [selectedResponse, setSelectedResponse] = useState<FormResponse | null>(null);

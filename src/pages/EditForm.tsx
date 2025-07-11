@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowRight, Plus, Trash2, ArrowUp, ArrowDown } from 'lucide-react';
-import { Form, FormStep, FormField } from '../types/formTypes';
+import { Form, FormStep, FormField } from '../types/form';
 import { v4 as uuidv4 } from 'uuid';
 
 const EditForm: React.FC = () => {
@@ -10,7 +10,12 @@ const EditForm: React.FC = () => {
   const [formData, setFormData] = useState<Form | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [newField, setNewField] = useState({
+  const [newField, setNewField] = useState<{
+    label: string;
+    type: 'text' | 'email' | 'number' | 'select' | 'textarea' | 'checkbox' | 'radio' | 'file';
+    required: boolean;
+    stepIndex: number;
+  }>({
     label: '',
     type: 'text',
     required: false,
@@ -87,7 +92,12 @@ const EditForm: React.FC = () => {
 
     updatedSteps[newField.stepIndex].fields.push(newFieldData);
     setFormData({ ...formData, steps: updatedSteps });
-    setNewField({ label: '', type: 'text', required: false, stepIndex: newField.stepIndex });
+    setNewField({ 
+      label: '', 
+      type: 'text', 
+      required: false, 
+      stepIndex: newField.stepIndex
+    });
   };
 
   const handleRemoveField = (stepIndex: number, fieldIndex: number) => {
@@ -205,7 +215,7 @@ const EditForm: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700">Type</label>
               <select
                 value={newField.type}
-                onChange={(e) => setNewField({ ...newField, type: e.target.value })}
+                onChange={(e) => setNewField({ ...newField, type: e.target.value as 'text' | 'email' | 'number' | 'select' | 'textarea' | 'checkbox' | 'radio' | 'file' })}
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="text">Text</option>
@@ -215,6 +225,7 @@ const EditForm: React.FC = () => {
                 <option value="select">Select</option>
                 <option value="checkbox">Checkbox</option>
                 <option value="radio">Radio Button</option>
+                <option value="file">File Upload</option>
               </select>
             </div>
             <div className="flex items-center justify-between">
